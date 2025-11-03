@@ -1,0 +1,10 @@
+Document 1: The quick brown fox jumps over the lazy dog.
+Document 2: Python is a popular programming language for AI and data science.
+Document 3: FastAPI is a modern web framework for building APIs with Python.
+Document 4: Streamlit makes it easy to build interactive data apps in Python.
+Document 5: Chroma is a vector database for storing embeddings and supporting similarity search.
+Document 6: OpenAI provides powerful language models for natural language processing.
+Document 7: Matplotlib is a Python library for creating visualizations and plots.
+Document 8: LangChain enables retrieval-augmented generation workflows.
+Document 9: Uvicorn is an ASGI server for running FastAPI applications.
+Document 10: Requests is a simple HTTP library for Python.
