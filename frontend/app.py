@@ -19,18 +19,62 @@ st.set_page_config(page_title="RAG+MCP Agent", layout="wide")
 st.title("🤖 Retrieval-Aware Tool-Using Agent with MCP")
 st.markdown("Query the agent and watch it retrieve context and invoke tools")
 
-# Sidebar: endpoint configuration (no hardcoding; defaults from env only)
+# Sidebar: configuration
 with st.sidebar:
-    st.header("Endpoints")
-    plot_default = os.getenv('PLOT_SERVICE_URL', '')
-    calc_default = os.getenv('CALCULATOR_URL', '')
-    pdf_default = os.getenv('PDF_PARSER_URL', '')
-    plot_url = st.text_input("plot-service URL", value=plot_default, placeholder="http://127.0.0.1:8000/mcp/plot")
-    calc_url = st.text_input("calculator URL", value=calc_default, placeholder="http://127.0.0.1:8001/mcp/calculate")
-    pdf_url = st.text_input("pdf-parser URL", value=pdf_default, placeholder="http://127.0.0.1:8002/mcp/parse")
+    st.header("🔌 MCP Services")
+    st.success("🎨 plot-service: port 8000")
+    st.success("🔢 calculator: port 8001")
+    st.success("📄 pdf-parser: port 8002")
+    st.markdown("---")
+    
+    # LLM mode toggle
+    st.header("🤖 Agent Mode")
+    use_llm = st.checkbox(
+        "Use LLM for tool selection",
+        value=False,
+        help="Enable to use LLM for intelligent tool selection instead of keywords"
+    )
+    
+    llm_model = "local"
+    llm_api_key = ""
+    
+    if use_llm:
+        llm_model = st.radio(
+            "LLM Provider",
+            options=["local", "openai"],
+            index=0,
+            help="Local: Free HuggingFace model (~2GB), OpenAI: Paid API"
+        )
+        
+        if llm_model == "local":
+            st.info("🆓 Using local TinyLlama model (free, ~2GB download on first use)")
+            st.caption("First run will download the model - this may take a few minutes")
+        else:
+            llm_api_key = st.text_input(
+                "OpenAI API Key",
+                type="password",
+                value=os.getenv('OPENAI_API_KEY', ''),
+                help="Required for OpenAI API"
+            )
+            if llm_api_key:
+                st.success("✅ OpenAI mode enabled")
+            else:
+                st.warning("⚠️ API key required for OpenAI mode")
+    else:
+        st.info("📝 Using keyword-based tool selection (fast & free)")
 
-# Initialize agent with configured endpoints
-agent = SimpleAgent({"plot": plot_url, "calculator": calc_url, "pdf": pdf_url})
+# Initialize agent with default endpoints
+endpoints = {
+    "plot": os.getenv('PLOT_SERVICE_URL', 'http://127.0.0.1:8000/mcp/plot'),
+    "calculator": os.getenv('CALCULATOR_URL', 'http://127.0.0.1:8001/mcp/calculate'),
+    "pdf": os.getenv('PDF_PARSER_URL', 'http://127.0.0.1:8002/mcp/parse')
+}
+agent = SimpleAgent(
+    endpoints, 
+    use_llm=use_llm, 
+    llm_model=llm_model if use_llm else "local",
+    llm_api_key=llm_api_key if (use_llm and llm_model == "openai") else None
+)
 
 # Query input
 query = st.text_input("Enter your query:", placeholder="e.g., 'Show me a plot of data'")

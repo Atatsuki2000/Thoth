@@ -1,4 +1,8 @@
 langchain
+langchain-chroma
+langchain-community
+langchain-core
+langchain-huggingface
 chromadb
 openai
 fastapi
@@ -6,3 +10,16 @@ uvicorn
 streamlit
 requests
 python-dotenv
+matplotlib
+sentence-transformers
+numexpr
+pypdf
+pillow
+pytest
+pytest-cov
+
+# Optional: For local LLM support (free alternative to OpenAI)
+# Uncomment to enable local tool selection with HuggingFace models
+# transformers>=4.35.0
+# torch>=2.0.0
+# accelerate>=0.24.0
