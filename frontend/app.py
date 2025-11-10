@@ -31,7 +31,7 @@ with st.sidebar:
     st.header("🤖 Agent Mode")
     use_llm = st.checkbox(
         "Use LLM for tool selection",
-        value=False,
+        value=True,  # Default to LLM mode
         help="Enable to use LLM for intelligent tool selection instead of keywords"
     )
     

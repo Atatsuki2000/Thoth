@@ -2,23 +2,27 @@ import os
 import re
 import requests
 import json
+import time
+from typing import Optional, Callable
 from retriever import get_top_k
 
 # Optional: Local LLM support
+pipeline: Optional[Callable] = None
 try:
-    from transformers import pipeline
+    from transformers import pipeline as hf_pipeline
     HF_AVAILABLE = True
 except ImportError:
     HF_AVAILABLE = False
+    hf_pipeline = None  # type: ignore
 
 class SimpleAgent:
-    def __init__(self, endpoints: dict | None = None, use_llm: bool = False, llm_api_key: str | None = None, llm_model: str = "local"):
+    def __init__(self, endpoints: dict | None = None, use_llm: bool = True, llm_api_key: str | None = None, llm_model: str = "local"):
         """
         endpoints: dict keys can include
           - 'plot': URL to plot-service MCP endpoint
           - 'calculator': URL to calculator MCP endpoint
           - 'pdf': URL to pdf-parser MCP endpoint
-        use_llm: If True, use LLM to determine which tool to call instead of keywords
+        use_llm: If True, use LLM to determine which tool to call instead of keywords (default: True)
         llm_api_key: OpenAI API key for LLM-based tool selection (only if llm_model="openai")
         llm_model: "local" for HuggingFace (free), "openai" for GPT-3.5 (paid)
         """
@@ -44,7 +48,9 @@ class SimpleAgent:
                 try:
                     print("Loading local LLM model (this may take a moment on first run)...")
                     # Use a small, fast model for tool selection
-                    self.local_llm = pipeline(
+                    # Ensure pipeline is available for type checkers
+                    assert hf_pipeline is not None
+                    self.local_llm = hf_pipeline(
                         "text-generation",
                         model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",  # 1.1B params, ~2GB
                         device_map="auto",
@@ -102,24 +108,29 @@ class SimpleAgent:
         for tool, desc in self.tool_descriptions.items():
             if tool == 'none' or self.endpoints.get(tool):
                 available_tools.append(f"- {tool}: {desc}")
-        
-        prompt = f"""Given the user's query and retrieved context, determine which tool to use.
 
-User Query: {user_query}
+        prompt = f"""You are a deterministic tool selection module.
+Analyze the user query and retrieved context and choose EXACTLY one tool.
 
-Retrieved Context:
-{context}
+User Query:
+{user_query}
+
+Context (truncated):
+{context[:1500]}
 
 Available Tools:
 {chr(10).join(available_tools)}
 
-Respond in JSON format with:
-{{
-    "tool": "plot|calculator|pdf|none",
-    "reasoning": "brief explanation of why this tool was chosen"
-}}
-
-Choose the most appropriate tool. If no tool is needed, select "none"."""
+Return ONLY valid JSON matching this schema (no extra text):
+{{"tool": "plot|calculator|pdf|none", "reasoning": "short justification"}}
+Rules:
+- 'calculator' for arithmetic / numeric computation requests.
+- 'plot' for visualization, chart, graph, histogram, bar, line, scatter, draw, diagram.
+- 'pdf' only if parsing / extracting from a PDF/document mentioned.
+- 'none' if no tool action required.
+- Prefer calculator over plot if user wants a numeric answer.
+- Prefer plot if explicit visualization requested.
+Respond with ONLY JSON."""
 
         # Use local HuggingFace model
         if self.llm_model == "local" and self.local_llm:
@@ -131,14 +142,22 @@ You are a tool selection assistant. Analyze the user's query and select the appr
 {prompt}</s>
 <|assistant|>
 """
-                response = self.local_llm(chat_prompt, max_new_tokens=100, temperature=0.3)[0]['generated_text']
+                response = self.local_llm(chat_prompt, max_new_tokens=120, temperature=0.1)[0]['generated_text']
                 
                 # Extract JSON from response
-                # Look for JSON between { and }
-                json_match = re.search(r'\{[^}]+\}', response)
+                # Look for JSON block with a "tool" field
+                json_match = re.search(r'\{\s*"tool"[^}]+\}', response)
                 if json_match:
-                    tool_selection = json.loads(json_match.group(0))
-                    return tool_selection
+                    try:
+                        parsed = json.loads(json_match.group(0))
+                        tool = parsed.get("tool", "none").strip().lower()
+                        if tool not in {"plot", "calculator", "pdf", "none"}:
+                            tool = "none"
+                        reasoning = parsed.get("reasoning", "LLM JSON parsed")[:200]
+                        return {"tool": tool, "reasoning": reasoning}
+                    except Exception:
+                        # fall back below
+                        pass
                 else:
                     # Fallback: simple keyword detection in response
                     response_lower = response.lower()
@@ -154,6 +173,8 @@ You are a tool selection assistant. Analyze the user's query and select the appr
             except Exception as e:
                 print(f"Local LLM tool selection failed: {e}")
                 return {"tool": "none", "reasoning": f"Local LLM error: {str(e)}"}
+            # Default fallback if no return occurred above
+            return {"tool": "none", "reasoning": "Unable to parse local LLM output"}
         
         # Use OpenAI API
         elif self.llm_model == "openai":
@@ -183,9 +204,17 @@ You are a tool selection assistant. Analyze the user's query and select the appr
                 result = response.json()
                 content = result['choices'][0]['message']['content']
                 
-                # Parse JSON response
-                tool_selection = json.loads(content)
-                return tool_selection
+                # Parse JSON response (robust against extra text)
+                json_match = re.search(r'\{\s*"tool"[^}]+\}', content)
+                if json_match:
+                    parsed = json.loads(json_match.group(0))
+                else:
+                    parsed = json.loads(content)
+                tool = parsed.get("tool", "none").strip().lower()
+                if tool not in {"plot", "calculator", "pdf", "none"}:
+                    tool = "none"
+                reasoning = parsed.get("reasoning", "OpenAI JSON parsed")[:200]
+                return {"tool": tool, "reasoning": reasoning}
                 
             except Exception as e:
                 print(f"OpenAI tool selection failed: {e}")
@@ -196,9 +225,34 @@ You are a tool selection assistant. Analyze the user's query and select the appr
 
     def _execute_calculator(self, user_query: str, reasoning: str = ""):
         """Execute calculator tool."""
-        # Extract expression from query
-        expr_match = re.search(r'[\d\s\+\-\*\/\(\)\.]+', user_query)
-        expression = expr_match.group(0).strip() if expr_match else "2 + 2"
+        # Extract / normalize expression from query
+        q = user_query.lower()
+        # Common phrase to operator replacements
+        replacements = [
+            ("divided by", "/"),
+            ("multiply by", "*"),
+            ("multiplied by", "*"),
+            ("times", "*"),
+            ("x", "*"),
+            ("plus", "+"),
+            ("minus", "-"),
+            ("to the power of", "**"),
+            ("power of", "**"),
+        ]
+        for a, b in replacements:
+            q = q.replace(a, b)
+        # square root of N -> (N)**0.5
+        sqrt_match = re.search(r'square\s+root\s+of\s+(\d+(?:\.\d+)?)', q)
+        if sqrt_match:
+            n = sqrt_match.group(1)
+            expression = f"({n})**0.5"
+        else:
+            # Fallback: pull arithmetic expression - must start with digit or parenthesis
+            expr_match = re.search(r'[\(\d][\d\s\+\-\*\/\^\(\)\.]*', q)
+            if expr_match:
+                expression = expr_match.group(0).strip().replace("^", "**")
+            else:
+                expression = "2 + 2"
 
         if not self.endpoints.get('calculator'):
             return {
@@ -262,46 +316,71 @@ You are a tool selection assistant. Analyze the user's query and select the appr
         }
 
     def plan_and_execute(self, user_query):
+        start_total = time.time()
         # Step 1: Retrieve top-k documents
+        start_retrieval = time.time()
         docs = get_top_k(user_query, k=3)
+        retrieval_time_ms = (time.time() - start_retrieval) * 1000
         context = "\n\n".join([d.page_content for d in docs])
         print("Context for planning:", context)
 
         # Step 2: Determine which tool to use
         if self.use_llm:
-            # Use LLM for intelligent tool selection
+            start_llm = time.time()
             tool_selection = self._select_tool_with_llm(user_query, context)
+            llm_time_ms = (time.time() - start_llm) * 1000
             selected_tool = tool_selection.get('tool', 'none')
             reasoning = tool_selection.get('reasoning', '')
             print(f"LLM selected tool: {selected_tool} - {reasoning}")
-            
             # Execute selected tool
             if selected_tool == 'calculator':
-                return self._execute_calculator(user_query, reasoning)
+                exe = self._execute_calculator(user_query, reasoning)
             elif selected_tool == 'plot':
-                return self._execute_plot(user_query, reasoning)
+                exe = self._execute_plot(user_query, reasoning)
             elif selected_tool == 'pdf':
-                return self._execute_pdf(user_query, reasoning)
+                exe = self._execute_pdf(user_query, reasoning)
             else:
-                return {"plan": f"No tool needed. {reasoning}", "tool_result": None}
+                # Hybrid fallback: if LLM returns 'none', try keyword heuristics
+                ql = user_query.lower()
+                calc_keywords = ["calculate", "compute", "calc", "evaluate", "math", "+", "-", "*", "/", "^", "divide", "times", "plus", "minus", "square root"]
+                plot_keywords = ["plot", "histogram", "chart", "graph", "visualiz", "visual", "draw", "generate", "bar", "line", "scatter", "diagram", "figure"]
+                if any(k in ql for k in calc_keywords) or re.search(r'[\d\s]+[\+\-\*\/^][\d\s]+', ql):
+                    selected_tool = 'calculator'
+                    exe = self._execute_calculator(user_query, "Keyword fallback: calculation detected")
+                elif any(k in ql for k in plot_keywords):
+                    selected_tool = 'plot'
+                    exe = self._execute_plot(user_query, "Keyword fallback: visualization detected")
+                else:
+                    exe = {"plan": f"No tool needed. {reasoning}", "tool_result": None}
+            exe["selected_tool"] = selected_tool
+            exe["retrieval_time_ms"] = retrieval_time_ms
+            exe["llm_time_ms"] = llm_time_ms
+            exe["end_to_end_ms"] = (time.time() - start_total) * 1000
+            return exe
         
         # Fallback to keyword-based selection
         query_lower = user_query.lower()
-        
-        # Check for calculator keywords
-        if any(word in query_lower for word in ["calculate", "compute", "calc", "evaluate", "math", "+", "-", "*", "/", "="]):
-            return self._execute_calculator(user_query, "Keyword match: calculation detected")
-        
-        # Check for plot keywords
-        elif any(word in query_lower for word in ["plot", "histogram", "chart", "graph", "visualiz", "visual", "draw", "generate"]):
-            return self._execute_plot(user_query, "Keyword match: visualization detected")
-        
-        # Check for PDF keywords
-        elif any(word in query_lower for word in ["pdf", "parse", "extract", "document"]):
-            return self._execute_pdf(user_query, "Keyword match: PDF operation detected")
-        
+        calc_keywords = ["calculate", "compute", "calc", "evaluate", "math", "sum", "add", "subtract", "multiply", "divide", "square root"]
+        plot_keywords = ["plot", "histogram", "chart", "graph", "visualiz", "visual", "draw", "generate", "bar", "line", "scatter", "diagram", "figure"]
+        pdf_keywords = ["pdf", "parse", "extract", "document", "file", "pages"]
+
+        selected_tool = "none"
+        if any(word in query_lower for word in calc_keywords) or re.search(r'[\d\s]+[\+\-\*\/^][\d\s]+', query_lower):
+            exe = self._execute_calculator(user_query, "Keyword match: calculation detected")
+            selected_tool = "calculator"
+        elif any(word in query_lower for word in plot_keywords):
+            exe = self._execute_plot(user_query, "Keyword match: visualization detected")
+            selected_tool = "plot"
+        elif any(word in query_lower for word in pdf_keywords):
+            exe = self._execute_pdf(user_query, "Keyword match: PDF operation detected")
+            selected_tool = "pdf"
         else:
-            return {"plan": "No tool call needed", "tool_result": None}
+            exe = {"plan": "No tool call needed", "tool_result": None}
+
+        exe["selected_tool"] = selected_tool
+        exe["retrieval_time_ms"] = retrieval_time_ms
+        exe["end_to_end_ms"] = (time.time() - start_total) * 1000
+        return exe
 
 if __name__ == "__main__":
     # Allow testing from CLI with environment-configured endpoints
