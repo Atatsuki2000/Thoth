@@ -18,8 +18,8 @@ pillow
 pytest
 pytest-cov
 
-# Optional: For local LLM support (free alternative to OpenAI)
-# Uncomment to enable local tool selection with HuggingFace models
-# transformers>=4.35.0
-# torch>=2.0.0
-# accelerate>=0.24.0
+# Local LLM support (free alternative to OpenAI)
+# For local tool selection with HuggingFace models
+transformers>=4.35.0
+torch>=2.0.0
+accelerate>=0.24.0

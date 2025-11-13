@@ -1,3 +1,33 @@
 .env
 *.md
 test_expr.py
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Testing
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+
+# Database
+db/chroma/*.sqlite3
+db/chroma/*.sqlite3-*
+db/test_chroma/
+db/test_chroma_dup/
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo

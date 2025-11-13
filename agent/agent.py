@@ -256,7 +256,7 @@ You are a tool selection assistant. Analyze the user's query and select the appr
 
         if not self.endpoints.get('calculator'):
             return {
-                "plan": f"Calculator: {reasoning}" if reasoning else "Calculator requested but endpoint not configured",
+                "plan": "Calculator requested but endpoint not configured",
                 "tool_result": {
                     "status": "info",
                     "result": {"message": "Set CALCULATOR_URL or pass endpoints to SimpleAgent."},
@@ -277,7 +277,7 @@ You are a tool selection assistant. Analyze the user's query and select the appr
         """Execute plot service tool."""
         if not self.endpoints.get('plot'):
             return {
-                "plan": f"Plot: {reasoning}" if reasoning else "Plot requested but endpoint not configured",
+                "plan": "Plot requested but endpoint not configured",
                 "tool_result": {
                     "status": "info",
                     "result": {"message": "Set PLOT_SERVICE_URL or pass endpoints to SimpleAgent."},
