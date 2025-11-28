@@ -52,9 +52,10 @@ class SimpleAgent:
                     assert hf_pipeline is not None
                     self.local_llm = hf_pipeline(
                         "text-generation",
-                        model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",  # 1.1B params, ~2GB
+                        model="microsoft/Phi-3.5-mini-instruct",  # 3.8B params, faster & more accurate
                         device_map="auto",
-                        max_new_tokens=100
+                        max_new_tokens=100,
+                        trust_remote_code=True
                     )
                     print("✅ Local LLM loaded successfully!")
                 except Exception as e:
@@ -135,14 +136,14 @@ Respond with ONLY JSON."""
         # Use local HuggingFace model
         if self.llm_model == "local" and self.local_llm:
             try:
-                # Format prompt for TinyLlama chat model
+                # Format prompt for Phi-3.5 chat model
                 chat_prompt = f"""<|system|>
-You are a tool selection assistant. Analyze the user's query and select the appropriate tool.</s>
+You are a tool selection assistant. Analyze the user's query and select the appropriate tool.<|end|>
 <|user|>
-{prompt}</s>
+{prompt}<|end|>
 <|assistant|>
 """
-                response = self.local_llm(chat_prompt, max_new_tokens=120, temperature=0.1)[0]['generated_text']
+                response = self.local_llm(chat_prompt, max_new_tokens=120, temperature=0.1, do_sample=False)[0]['generated_text']
                 
                 # Extract JSON from response
                 # Look for JSON block with a "tool" field
