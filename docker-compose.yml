@@ -1,0 +1,66 @@
+services:
+  plot-service:
+    build:
+      context: ./tools/plot-service
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  calculator:
+    build:
+      context: ./tools/calculator
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  pdf-parser:
+    build:
+      context: ./tools/pdf-parser
+      dockerfile: Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  streamlit:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - PORT=8501
+      - PLOT_SERVICE_URL=http://plot-service:8000/mcp/plot
+      - CALCULATOR_URL=http://calculator:8001/mcp/calculate
+      - PDF_PARSER_URL=http://pdf-parser:8002/mcp/parse
+    depends_on:
+      - plot-service
+      - calculator
+      - pdf-parser
+    restart: unless-stopped
+
+networks:
+  default:
+    name: mcp-network

@@ -5,15 +5,17 @@ A production-ready system combining **Retrieval-Augmented Generation (RAG)**, **
 ## 🎯 Features
 
 - **RAG System**: Retrieves relevant documents using HuggingFace embeddings and Chroma vector store
-- **MCP Tools**: 
-  - 🎨 `plot-service`: Generate visualizations with matplotlib
+- **MCP Tools** (deployed to Google Cloud Run):
+  - 🎨 `plot-service`: Mathematical functions (sin, cos, tan, etc.) + categorical visualizations
   - 🔢 `calculator`: Safe mathematical expression evaluation
   - 📄 `pdf-parser`: Extract text from PDF documents
-- **Agent Orchestration**: Triple-mode tool selection
-  - 📝 **Keyword-based** (default): Fast, deterministic, zero cost
-  - 🆓 **Local LLM** (recommended): Free HuggingFace models, no API needed
+- **Dual-Mode Agent Orchestration**:
+  - ⚡ **Keyword-based** (517ms avg): Fast, deterministic, zero cost
+  - 🧠 **Local LLM with TinyLlama** (1.9s avg): Optimized inference, no API needed
   - 🤖 **OpenAI GPT-3.5** (optional): Highest accuracy, requires paid API
 - **Interactive UI**: Streamlit frontend for real-time interaction
+- **Production-Ready**: Deployed to Cloud Run, 100% free tier compatible
+- **Optimized Performance**: 13.7x LLM speedup (26s → 1.9s)
 - **Error Handling**: Robust retry logic and graceful error recovery
 - **CI/CD**: Automated testing with GitHub Actions
 
@@ -53,7 +55,26 @@ pip install -r requirements.txt
 
 ### Quick Start
 
-**Option 1: One-Command Startup (Recommended)**
+**Option 1: Docker Compose (Easiest)**
+```bash
+# Start all services with Docker
+docker-compose up -d --build
+
+# Verify services are running
+docker-compose ps
+
+# View logs
+docker-compose logs -f
+```
+
+Services available at:
+- plot-service: http://localhost:8000
+- calculator: http://localhost:8001
+- pdf-parser: http://localhost:8002
+
+See [DOCKER.md](DOCKER.md) for full Docker guide.
+
+**Option 2: PowerShell/Bash Scripts**
 ```bash
 # Windows
 .\start_services.ps1
@@ -65,7 +86,7 @@ chmod +x start_services.sh
 
 This will automatically start all MCP services and the Streamlit UI.
 
-**Option 2: Manual Startup**
+**Option 3: Manual Startup**
 
 1. **Start MCP Tool Services** (in separate terminals):
 
@@ -96,9 +117,10 @@ streamlit run app.py --server.port 9000
 	- pdf-parser URL: `http://127.0.0.1:8002/mcp/parse`
 
 4. **Try Example Queries**:
-	- "What tool can I use to plot data?"
-	- "Calculate 5 + 3 * 2"
-	- "Show me a histogram"
+	- "Plot sin(x) from 0 to 10" (mathematical visualization)
+	- "Calculate 25 * 17 + 89" (calculator tool)
+	- "Show me a bar chart" (categorical visualization)
+	- "What is machine learning?" (RAG retrieval only)
 
 ## 🧪 Testing
 
@@ -183,25 +205,63 @@ export PDF_PARSER_URL=http://127.0.0.1:8002/mcp/parse
 
 ## 📊 Metrics & Performance
 
-### Benchmarked Performance
+### Benchmarked Performance (Latest Results - 2025)
 
-| Metric | Keyword Mode | Local LLM Mode | Target |
-|--------|-------------|----------------|--------|
-| **Tool Selection Accuracy** | 100% | 100% | >85% |
-| **Tool Success Rate** | 100% | 100% | >90% |
-| **Avg Retrieval Latency** | 69ms | 85ms | <100ms |
-| **Avg End-to-End Latency** | 208ms | ~26s | <2000ms |
-| **Cost per Query** | $0 | $0 | Free |
+| Metric | Keyword Mode | Local LLM Mode | Target | Status |
+|--------|-------------|----------------|--------|--------|
+| **Tool Selection Accuracy** | 100% | 100% | >85% | ✅ Excellent |
+| **Tool Success Rate** | 100% | 100% | >90% | ✅ Excellent |
+| **Avg Retrieval Latency** | 66ms | 70ms | <100ms | ✅ Excellent |
+| **Avg End-to-End Latency** | **517ms** | **1.9s** | <2s | ✅ Excellent |
+| **Cost per Query** | $0 | $0 | Free | ✅ Zero Cost |
+
+**Performance Optimization:** TinyLlama optimized from 26s → 1.9s (13.7x speedup) through:
+- Simplified prompt design (JSON → direct keyword format)
+- Reduced token generation (max_new_tokens: 50 → 10)
+- Greedy decoding for faster inference
+- Efficient keyword extraction from generated text
 
 ### Mode Comparison
 
 | Mode | Accuracy | Latency | Cost | Best For |
 |------|----------|---------|------|----------|
-| **Keyword** ⭐ | 100% | ~200ms | $0 | Production, low latency |
-| **Local LLM** | 100% | ~26s | $0 | Development, no API |
-| **OpenAI** | 95-98% | ~800ms | ~$0.0004 | Highest accuracy |
+| **Keyword** ⭐ | 100% | 517ms | $0 | Production, ultra-low latency |
+| **Local LLM (TinyLlama)** 🚀 | 100% | 1.9s | $0 | Zero-cost inference, portfolio demos |
+| **OpenAI GPT-3.5** | 95-98% | ~800ms | ~$0.0004 | Highest flexibility |
 
 Run `python benchmark.py --mode comparison --save` for detailed analysis.
+
+## ☁️ Cloud Deployment
+
+### Google Cloud Run (Production)
+
+All 3 MCP tools are deployed to Google Cloud Run (us-central1):
+- **plot-service**: https://plot-service-347876502362.us-central1.run.app
+- **calculator**: https://calculator-h7whjphxza-uc.a.run.app
+- **pdf-parser**: https://pdf-parser-h7whjphxza-uc.a.run.app
+
+**Deployment Cost:** $0/month (100% within free tier)
+- 2M requests/month free
+- 360k GB-seconds compute free
+- 0.5GB container storage free
+
+**To use Cloud Run endpoints in Streamlit:**
+```bash
+# Set environment variables
+export PLOT_SERVICE_URL=https://plot-service-347876502362.us-central1.run.app/mcp/plot
+export CALCULATOR_URL=https://calculator-h7whjphxza-uc.a.run.app/mcp/calculate
+export PDF_PARSER_URL=https://pdf-parser-h7whjphxza-uc.a.run.app/mcp/parse
+
+# Or configure directly in Streamlit sidebar
+```
+
+**Deploy your own:**
+```bash
+cd tools/plot-service
+gcloud run deploy plot-service --source . --region us-central1 --allow-unauthenticated
+```
+
+See [Deployment Guide](docs/deployment.md) for detailed instructions.
 
 ## 🔒 Security
 

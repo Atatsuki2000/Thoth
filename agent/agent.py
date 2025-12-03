@@ -138,18 +138,25 @@ Respond with ONLY JSON."""
                 chat_prompt = f"""Select tool for: {user_query}
 Options: calculator, plot, pdf, none
 Answer: """
-                response = self.local_llm(chat_prompt, max_new_tokens=50, temperature=0.1, do_sample=True)[0]['generated_text']
+                full_response = self.local_llm(
+                    chat_prompt,
+                    max_new_tokens=10,  # Reduced from 50 - only need one word
+                    do_sample=False,     # Greedy decoding for speed
+                    pad_token_id=self.local_llm.tokenizer.eos_token_id  # Proper padding
+                )[0]['generated_text']
 
-                # Direct keyword detection in response
-                response_lower = response.lower()
-                if 'calculator' in response_lower or 'calculate' in response_lower:
-                    return {"tool": "calculator", "reasoning": "TinyLlama selected calculator"}
-                elif 'plot' in response_lower or 'visual' in response_lower or 'chart' in response_lower or 'graph' in response_lower:
-                    return {"tool": "plot", "reasoning": "TinyLlama selected plot"}
-                elif 'pdf' in response_lower:
-                    return {"tool": "pdf", "reasoning": "TinyLlama selected PDF"}
+                # Extract only the generated part (after the prompt)
+                generated_part = full_response[len(chat_prompt):].strip().lower()
+
+                # Direct keyword detection in ONLY the generated part
+                if 'calculator' in generated_part or 'calculate' in generated_part:
+                    return {"tool": "calculator", "reasoning": f"TinyLlama selected calculator: {generated_part}"}
+                elif 'plot' in generated_part or 'visual' in generated_part or 'chart' in generated_part or 'graph' in generated_part:
+                    return {"tool": "plot", "reasoning": f"TinyLlama selected plot: {generated_part}"}
+                elif 'pdf' in generated_part:
+                    return {"tool": "pdf", "reasoning": f"TinyLlama selected PDF: {generated_part}"}
                 else:
-                    return {"tool": "none", "reasoning": "TinyLlama selected none"}
+                    return {"tool": "none", "reasoning": f"TinyLlama selected none: {generated_part}"}
                         
             except Exception as e:
                 print(f"Local LLM tool selection failed: {e}")
@@ -265,23 +272,55 @@ Answer: """
                     "logs": ["plot endpoint missing"]
                 }
             }
-        
-        payload = {
-            "mcp_version": "1.0",
-            "tool": "plot-service",
-            "input": {
-                "instructions": "Plot a histogram of the numeric column 'value' grouped by 'category'",
-                "data_reference": {
-                    "type": "inline",
-                    "payload": {
-                        "columns": ["category", "value"],
-                        "rows": [["A", 10], ["B", 3], ["A", 2]]
+
+        # Parse query to generate plotting code
+        q = user_query.lower()
+
+        # Extract function name (sin, cos, tan, log, exp, etc.)
+        func_match = re.search(r'(sin|cos|tan|log|exp|sqrt)\s*\(?\s*x\s*\)?', q)
+
+        if func_match:
+            func_name = func_match.group(1)
+
+            # Extract range (e.g., "from 0 to 10")
+            range_match = re.search(r'from\s+(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)', q)
+            if range_match:
+                start, end = range_match.group(1), range_match.group(2)
+            else:
+                start, end = "0", "10"  # Default range
+
+            # Generate plotting code
+            code = f"""x = np.linspace({start}, {end}, 100)
+y = np.{func_name}(x)
+plt.plot(x, y)
+plt.xlabel('x')
+plt.ylabel('{func_name}(x)')
+plt.title('{func_name}(x) from {start} to {end}')
+plt.grid(True)"""
+
+            payload = {
+                "mcp_version": "1.0",
+                "tool": "plot-service",
+                "input": {"code": code},
+                "metadata": {"request_id": "req-plot", "agent_id": "agent-v1"}
+            }
+        else:
+            # Fallback: use bar chart with dummy data
+            payload = {
+                "mcp_version": "1.0",
+                "tool": "plot-service",
+                "input": {
+                    "data_reference": {
+                        "type": "inline",
+                        "payload": {
+                            "columns": ["category", "value"],
+                            "rows": [["A", 10], ["B", 15], ["C", 7]]
+                        }
                     }
                 },
-                "options": {"bins": 10, "title": "Value by Category"}
-            },
-            "metadata": {"request_id": "req-123", "agent_id": "agent-v1"}
-        }
+                "metadata": {"request_id": "req-plot", "agent_id": "agent-v1"}
+            }
+
         r = self._post(self.endpoints['plot'], payload)
         return {"plan": f"Call plot-service: {reasoning}" if reasoning else "Call plot-service", "tool_result": r}
 
