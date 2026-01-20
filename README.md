@@ -1,335 +1,167 @@
-# Retrieval-Aware Tool-Using Agent Framework with MCP Integration
+# 🤖 RAG Agent Framework with MCP Integration
 
-A production-ready system combining **Retrieval-Augmented Generation (RAG)**, **Model Context Protocol (MCP)** tools, and **autonomous agent orchestration** to create an intelligent assistant that retrieves context and invokes specialized tools.
+> **Production-ready intelligent assistant combining RAG, LLM reasoning, and specialized MCP tools**
 
-> **🎉 NEW: Knowledge Base Upload System!** Upload your own documents (PDF, DOCX, TXT, MD) to create personalized knowledge assistants. [See what's new →](docs/whats-new.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-## 🎯 Features
+## ✨ Highlights
 
-### Core Capabilities
-- **📚 User Knowledge Base Upload**: Upload your own documents (PDF, DOCX, TXT, MD) to create personalized knowledge assistants
-- **🔍 RAG System**: Retrieves relevant documents using HuggingFace embeddings and Chroma vector store
-- **🛠️ MCP Tools** (deployed to Google Cloud Run):
-  - 🎨 `plot-service`: Mathematical functions (sin, cos, tan, etc.) + categorical visualizations
-  - 🔢 `calculator`: Safe mathematical expression evaluation
-  - 📄 `pdf-parser`: Extract text from PDF documents
-- **🤖 Dual-Mode Agent Orchestration**:
-  - ⚡ **Keyword-based** (517ms avg): Fast, deterministic, zero cost
-  - 🧠 **Local LLM with TinyLlama** (1.9s avg): Optimized inference, no API needed
-  - 🤖 **OpenAI GPT-3.5** (optional): Highest accuracy, requires paid API
+- 📚 **Smart Knowledge Base**: Upload PDFs, DOCX, TXT, MD - AI instantly learns from your documents
+- 🛠️ **5 Powerful Tools**: Calculator, Web Search, File Ops, Plotting, PDF Parser
+- 🤖 **Flexible AI Models**: Free local LLM (TinyLlama) or premium OpenAI GPT-3.5/4
+- 🌐 **Web Interface**: Beautiful Streamlit UI with real-time chat
+- 🔌 **n8n Integration**: Pre-built workflows for automation
+- ⚡ **Production Ready**: Error handling, retry logic, comprehensive logging
 
-### User Experience
-- **🎨 Enhanced Web UI**: Drag-and-drop document upload, collection management, real-time chat
-- **📊 Collection Management**: Organize documents by topic, view statistics, track usage
-- **🌐 Multi-Format Support**: PDF, Word, Text, Markdown documents
-- **🔐 User-Specific Collections**: Isolated knowledge bases for different use cases
+## 🎯 What Can It Do?
 
-### Production Features
-- **☁️ Cloud-Ready**: Deployed to Google Cloud Run, 100% free tier compatible
-- **⚡ Optimized Performance**: 13.7x LLM speedup (26s → 1.9s)
-- **🛡️ Error Handling**: Robust retry logic and graceful error recovery
-- **🔄 CI/CD**: Automated testing with GitHub Actions
-- **📡 REST API**: Full-featured API for programmatic access
+**Ask natural language questions:**
+- ❓ "What is machine learning?" → Searches your knowledge base + web
+- 🧮 "Calculate 25 * 17" → Returns `425`
+- 📊 "Plot a sine wave" → Generates beautiful matplotlib chart
+- 📄 "Read file README.md" → Shows file contents
+- 🌍 "What's the latest on Python 3.12?" → Web search + AI summary
 
 ## 📋 Architecture
 
 ```
-[User UI (Streamlit)]
-		  ↓
-[Agent Orchestrator]
-	↓          ↓           ↓
-[RAG]    [Reasoner]  [MCP Tools]
-	↓                      ↑
-[Chroma DB]      [FastAPI Services]
+User Interface (Streamlit) → http://localhost:9001
+         ↓
+   Agent Orchestrator
+    ↙    ↓    ↘
+  RAG  Tools  Web Search
+   ↓     ↓      ↓
+ChromaDB MCP   DuckDuckGo
+         Services
 ```
+
+**Components:**
+- **KB API** (port 8100): Document upload, vector storage, retrieval
+- **Agent**: Intelligent tool selection + execution
+- **MCP Tools**: Calculator (8001), Plot (8000), PDF (8002), Web Search (8003), File Ops (8004)
+- **Frontend**: Streamlit chat interface (9001)
 
 ## 🚀 Quick Start
 
-### Prerequisites
-- Python 3.10+
-- Git
+### 1. Installation
 
-### Installation
-
-```bash
-# Clone repository
-git clone https://github.com/Atatsuki2000/Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration.git
+```powershell
+# Clone & setup
+git clone <your-repo-url>
 cd Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration
 
 # Create virtual environment
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-# or: source .venv/bin/activate  # Linux/Mac
+.\.venv\Scripts\activate  # Windows
+# source .venv/bin/activate  # Linux/Mac
 
 # Install dependencies
 pip install -r requirements.txt
 ```
 
-### Quick Start
+### 2. Launch (One Command!)
 
-**🚀 Option 1: One-Click Startup (Recommended)**
-```bash
-# Windows - Starts all services including KB system
+```powershell
+# Windows
 .\start_kb_system.ps1
 
-# Linux/Mac - Traditional startup
-./start_services.sh
+# The script starts:
+# ✅ KB API (port 8100)
+# ✅ 5 MCP tool services (8000-8004)
+# ✅ Web UI (port 9001) - Auto-opens in browser
 ```
 
-This automatically starts:
-- ✅ Plot Service (port 8000)
-- ✅ Calculator (port 8001)
-- ✅ PDF Parser (port 8002)
-- ✅ **Knowledge Base API (port 8100)** ← New!
-- ✅ **Enhanced Web UI (port 9001)** ← New!
+### 3. Use It!
 
-Your browser will open to the enhanced interface automatically!
+1. **Upload Documents** (Upload tab)
+   - Drag & drop PDF/DOCX/TXT/MD files
+   - Select collection (or create new)
+   - Click "Upload to Knowledge Base"
 
-**🐳 Option 2: Docker Compose**
-```bash
-# Start all services with Docker
-docker-compose up -d --build
+2. **Initialize Agent** (Sidebar)
+   - Choose LLM: `local` (free TinyLlama) or `openai`
+   - Click "Initialize Agent"
+   - See ✅ "Agent is ready!"
 
-# Verify services are running
-docker-compose ps
+3. **Ask Questions** (Chat tab)
+   - ✅ Enable MCP Tools
+   - Type: "What is machine learning?" or "Calculate 25*17" or "Plot sine wave"
+   - Get AI-powered answers with tool execution!
 
-# View logs
-docker-compose logs -f
-```
+## 🔌 n8n Automation
 
-Services available at:
-- plot-service: http://localhost:8000
-- calculator: http://localhost:8001
-- pdf-parser: http://localhost:8002
-
-See [DOCKER.md](DOCKER.md) for full Docker guide.
-
-**Option 2: PowerShell/Bash Scripts**
-```bash
-# Windows
-.\start_services.ps1
-
-# Linux/Mac
-chmod +x start_services.sh
-./start_services.sh
-```
-
-This will automatically start all MCP services and the Streamlit UI.
-
-**Option 3: Manual Startup**
-
-1. **Start MCP Tool Services** (in separate terminals):
+Pre-built workflows for automation:
 
 ```bash
-# Terminal 1: Plot Service
-cd tools/plot-service
-uvicorn main:app --host 0.0.0.0 --port 8000
+# Install n8n
+npm install -g n8n
 
-# Terminal 2: Calculator Service
-cd tools/calculator
-uvicorn main:app --host 0.0.0.0 --port 8001
-
-# Terminal 3: PDF Parser Service
-cd tools/pdf-parser
-uvicorn main:app --host 0.0.0.0 --port 8002
+# Start n8n
+n8n start  # Opens http://localhost:5678
 ```
 
-2. **Launch Streamlit UI**:
+**Import workflows** (`n8n-nodes/` folder):
+1. `rag-query-workflow.json` - Query knowledge base
+2. `kb-upload-workflow.json` - Upload documents
+3. `automated-rag-workflow.json` - Daily AI reports
 
-```bash
-cd frontend
-streamlit run app.py --server.port 9000
-```
-
-3. **Configure Endpoints** in the Streamlit sidebar:
-	- plot-service URL: `http://127.0.0.1:8000/mcp/plot`
-	- calculator URL: `http://127.0.0.1:8001/mcp/calculate`
-	- pdf-parser URL: `http://127.0.0.1:8002/mcp/parse`
-
-4. **Try Example Queries**:
-	- "Plot sin(x) from 0 to 10" (mathematical visualization)
-	- "Calculate 25 * 17 + 89" (calculator tool)
-	- "Show me a bar chart" (categorical visualization)
-	- "What is machine learning?" (RAG retrieval only)
+[📖 Full n8n guide →](n8n-nodes/README.md)
 
 ## 🧪 Testing
 
-### Unit & Integration Tests
+### Quick Health Check
 
 ```bash
-# Run all tests
-pytest tests/
-
-# Run with coverage
-pytest tests/ --cov=agent --cov-report=html
+# Ensure all 7 services are responding
+curl http://localhost:8100/health  # KB API
+curl http://localhost:8000/mcp/health  # Plot
+curl http://localhost:8001/mcp/health  # Calculator
+curl http://localhost:8002/mcp/health  # PDF Parser
+curl http://localhost:8003/mcp/health  # Web Search
+curl http://localhost:8004/mcp/health  # File Ops
+# UI at http://localhost:9001
 ```
 
-### Performance Benchmarks
+### Try Example Queries
 
-```bash
-# Run all benchmarks (retrieval + agent modes comparison)
-python benchmark.py --mode all --save
-
-# Test only retrieval performance
-python benchmark.py --mode retrieval
-
-# Compare agent modes (keyword vs local LLM vs OpenAI)
-python benchmark.py --mode comparison --save
-```
-
-**Benchmark Metrics:**
-- 📊 **Retrieval Precision@k**: Accuracy of document retrieval
-- ⏱️ **Latency Breakdown**: Retrieval, LLM, tool invocation timings
-- 🎯 **Tool Selection Accuracy**: Correctness of agent's tool choice
-- ✅ **Tool Success Rate**: Percentage of successful MCP calls
-
-See [Benchmarking Guide](docs/benchmarking.md) for detailed usage and interpretation.
-
-## 📁 Project Structure
-
-```
-.
-├── agent/              # Agent orchestration & retriever
-│   ├── agent.py        # Main agent logic
-│   ├── retriever.py    # RAG retrieval system
-│   └── test_corpus.txt # Sample corpus
-├── tools/              # MCP tool services
-│   ├── plot-service/   # Visualization tool
-│   ├── calculator/     # Math evaluation tool
-│   └── pdf-parser/     # PDF text extraction
-├── frontend/           # Streamlit UI
-│   └── app.py
-├── tests/              # Integration tests
-├── .github/workflows/  # CI/CD pipelines
-└── requirements.txt    # Python dependencies
-```
+1. **Calculator**: "What is 25 times 17 plus 100?"
+2. **Plotting**: "Plot a sine wave from 0 to 10"
+3. **Web Search**: "What is Christmas?"
+4. **File Operations**: "Read the README.md file"
+5. **Knowledge Base**: Upload a document first, then ask about it!
 
 ## 📚 Documentation
 
-- **[Architecture Guide](docs/architecture.md)**: System design and data flow diagrams
-- **[Deployment Guide](docs/deployment.md)**: Local and Cloud Run deployment instructions
-- **[Testing Guide](docs/testing.md)**: Test execution and coverage reporting
-- **[Benchmarking Guide](docs/benchmarking.md)**: 📊 Performance evaluation and metrics
-- **[Usage Examples](docs/usage.md)**: API examples and common patterns
-- **[Local LLM Setup](docs/local-llm-setup.md)**: 🆓 Use free HuggingFace models for tool selection (no API costs!)
-- **[LLM Tool Selection](docs/llm-tool-selection.md)**: Guide to using OpenAI GPT-3.5 (paid API)
+- [📖 Quick Start Examples](docs/quick-start-example.md) - Step-by-step tutorials
+- [📤 KB Upload Guide](docs/kb-upload-guide.md) - How to upload documents
+- [🔄 n8n Workflows](n8n-nodes/README.md) - Automation setup
+- [🔧 Local LLM Setup](docs/local-llm-setup.md) - Free TinyLlama configuration
+- [💰 OpenAI Setup](docs/llm-tool-selection.md) - GPT-3.5/4 API integration
 
-## �🛠️ Development
+## 🌟 What's New
 
-### Environment Variables
+- ✅ **v0.3.0** (Current) - n8n workflows, web search, file operations
+- ✅ **v0.2.0** - Enhanced KB with multi-collection support
+- ✅ **v0.1.0** - Initial release with 3 MCP tools
 
-Set these to avoid manual configuration:
-
-```bash
-export PLOT_SERVICE_URL=http://127.0.0.1:8000/mcp/plot
-export CALCULATOR_URL=http://127.0.0.1:8001/mcp/calculate
-export PDF_PARSER_URL=http://127.0.0.1:8002/mcp/parse
-```
-
-### Adding New MCP Tools
-
-1. Create a new directory under `tools/`
-2. Implement FastAPI endpoint with MCP schema
-3. Update agent keyword detection in `agent/agent.py`
-4. Add endpoint to Streamlit sidebar configuration
-
-## 📊 Metrics & Performance
-
-### Benchmarked Performance (Latest Results - 2025)
-
-| Metric | Keyword Mode | Local LLM Mode | Target | Status |
-|--------|-------------|----------------|--------|--------|
-| **Tool Selection Accuracy** | 100% | 100% | >85% | ✅ Excellent |
-| **Tool Success Rate** | 100% | 100% | >90% | ✅ Excellent |
-| **Avg Retrieval Latency** | 66ms | 70ms | <100ms | ✅ Excellent |
-| **Avg End-to-End Latency** | **517ms** | **1.9s** | <2s | ✅ Excellent |
-| **Cost per Query** | $0 | $0 | Free | ✅ Zero Cost |
-
-**Performance Optimization:** TinyLlama optimized from 26s → 1.9s (13.7x speedup) through:
-- Simplified prompt design (JSON → direct keyword format)
-- Reduced token generation (max_new_tokens: 50 → 10)
-- Greedy decoding for faster inference
-- Efficient keyword extraction from generated text
-
-### Mode Comparison
-
-| Mode | Accuracy | Latency | Cost | Best For |
-|------|----------|---------|------|----------|
-| **Keyword** ⭐ | 100% | 517ms | $0 | Production, ultra-low latency |
-| **Local LLM (TinyLlama)** 🚀 | 100% | 1.9s | $0 | Zero-cost inference, portfolio demos |
-| **OpenAI GPT-3.5** | 95-98% | ~800ms | ~$0.0004 | Highest flexibility |
-
-Run `python benchmark.py --mode comparison --save` for detailed analysis.
-
-## ☁️ Cloud Deployment
-
-### Google Cloud Run (Production)
-
-All 3 MCP tools are deployed to Google Cloud Run (us-central1):
-- **plot-service**: https://plot-service-347876502362.us-central1.run.app
-- **calculator**: https://calculator-h7whjphxza-uc.a.run.app
-- **pdf-parser**: https://pdf-parser-h7whjphxza-uc.a.run.app
-
-**Deployment Cost:** $0/month (100% within free tier)
-- 2M requests/month free
-- 360k GB-seconds compute free
-- 0.5GB container storage free
-
-**To use Cloud Run endpoints in Streamlit:**
-```bash
-# Set environment variables
-export PLOT_SERVICE_URL=https://plot-service-347876502362.us-central1.run.app/mcp/plot
-export CALCULATOR_URL=https://calculator-h7whjphxza-uc.a.run.app/mcp/calculate
-export PDF_PARSER_URL=https://pdf-parser-h7whjphxza-uc.a.run.app/mcp/parse
-
-# Or configure directly in Streamlit sidebar
-```
-
-**Deploy your own:**
-```bash
-cd tools/plot-service
-gcloud run deploy plot-service --source . --region us-central1 --allow-unauthenticated
-```
-
-See [Deployment Guide](docs/deployment.md) for detailed instructions.
-
-## 🔒 Security
-
-- No hardcoded credentials (environment variables only)
-- Safe expression evaluation using `numexpr`
-- Input validation on all MCP endpoints
-- HTTPS recommended for production deployments
-
-## 📝 License
-
-MIT License
+See [CHANGELOG.md](CHANGELOG.md) for full history.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) for details on:
-- Development setup
-- Code style guidelines
-- Testing requirements
-- Pull request process
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-## 📜 Changelog
+## 📄 License
 
-See [CHANGELOG.md](CHANGELOG.md) for version history and release notes.
+MIT License - see [LICENSE](LICENSE) file.
 
-## 🙏 Acknowledgments
+## 💡 Support & Community
 
-Built with:
-- [LangChain](https://github.com/langchain-ai/langchain)
-- [Chroma](https://github.com/chroma-core/chroma)
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Streamlit](https://streamlit.io/)
-- [HuggingFace](https://huggingface.co/)
+- 📧 **Issues**: [GitHub Issues](https://github.com/Atatsuki2000/Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/Atatsuki2000/Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration/discussions)
+- ⭐ **Show Support**: Star this repo if you find it useful!
 
-## 📧 Contact
+---
 
-- **GitHub Issues**: For bug reports and feature requests
-- **Repository**: https://github.com/Atatsuki2000/Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration
-
-## ⭐ Show Your Support
-
-If you find this project helpful, please consider giving it a star on GitHub!
+**Built with ❤️ using FastAPI, Streamlit, ChromaDB, and n8n**
