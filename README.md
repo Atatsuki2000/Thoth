@@ -1,10 +1,12 @@
-# 🤖 RAG Agent Framework with MCP Integration
+# 📚 Thoth - A Powerful Multi-Tool RAG Agent Framework
 
-> **Production-ready intelligent assistant combining RAG, LLM reasoning, and specialized MCP tools**
+> **Ancient wisdom meets modern AI: Intelligent assistant combining knowledge retrieval, LLM reasoning, and specialized MCP tools**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+Named after the Egyptian god of knowledge, writing, and wisdom, **Thoth** is your AI companion that remembers, reasons, and acts.
 
 ## ✨ Highlights
 
