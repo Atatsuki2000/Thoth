@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import matplotlib
+matplotlib.use('Agg')  # Use non-GUI backend for web service
 import matplotlib.pyplot as plt
 import io, base64
 

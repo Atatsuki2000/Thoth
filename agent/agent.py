@@ -31,11 +31,15 @@ class SimpleAgent:
             'plot': os.getenv('PLOT_SERVICE_URL', ''),
             'calculator': os.getenv('CALCULATOR_URL', ''),
             'pdf': os.getenv('PDF_PARSER_URL', ''),
+            'web_search': os.getenv('WEB_SEARCH_URL', ''),
+            'file_ops': os.getenv('FILE_OPS_URL', ''),
         }
         self.endpoints = {**env_endpoints, **(endpoints or {})}
         self.use_llm = use_llm
         self.llm_model = llm_model
-        self.llm_api_key = llm_api_key or os.getenv('OPENAI_API_KEY', '')
+        # Use None for empty API key to make checking easier
+        api_key = llm_api_key or os.getenv('OPENAI_API_KEY', '')
+        self.llm_api_key = api_key if api_key else None
         
         # Initialize local LLM pipeline if needed
         self.local_llm = None
@@ -66,6 +70,8 @@ class SimpleAgent:
             'plot': 'Generate visualizations, charts, graphs, histograms, or any kind of plots',
             'calculator': 'Perform mathematical calculations, evaluate expressions, compute numbers',
             'pdf': 'Parse PDF documents, extract text from PDFs',
+            'web_search': 'Search the web for current information, news, or facts not in the knowledge base',
+            'file_ops': 'Read or write files in the workspace, list directory contents',
             'none': 'No tool needed, just retrieve information from knowledge base'
         }
 
@@ -121,42 +127,32 @@ Available Tools:
 {chr(10).join(available_tools)}
 
 Return ONLY valid JSON matching this schema (no extra text):
-{{"tool": "plot|calculator|pdf|none", "reasoning": "short justification"}}
-Rules:
-- 'calculator' for arithmetic / numeric computation requests.
-- 'plot' for visualization, chart, graph, histogram, bar, line, scatter, draw, diagram.
-- 'pdf' only if parsing / extracting from a PDF/document mentioned.
-- 'none' if no tool action required.
-- Prefer calculator over plot if user wants a numeric answer.
-- Prefer plot if explicit visualization requested.
+{{"tool": "calculator|plot|pdf|web_search|file_ops|none", "reasoning": "short justification"}}
+
+CRITICAL RULES:
+- 'calculator' ONLY for explicit math expressions (e.g., "25*17", "calculate 5+3", "square root of 144")
+- 'plot' ONLY for explicit visualization requests (e.g., "plot a chart", "draw a graph", "create histogram")
+- 'web_search' for questions requiring current/external information (e.g., "What is", "latest news", "search for")
+- 'file_ops' for reading/writing files (e.g., "read file", "show contents of")
+- 'pdf' ONLY if parsing a PDF document is explicitly mentioned
+- 'none' for general knowledge questions that can be answered from context
+- DEFAULT to 'none' if unsure - knowledge base will handle it
+
+Examples:
+- "What is Christmas?" → {{"tool": "none", "reasoning": "General knowledge question"}}
+- "Calculate 25*17" → {{"tool": "calculator", "reasoning": "Math calculation"}}
+- "Search for Python news" → {{"tool": "web_search", "reasoning": "Current information needed"}}
+- "Read file README.md" → {{"tool": "file_ops", "reasoning": "File operation"}}
+
 Respond with ONLY JSON."""
 
         # Use local HuggingFace model
         if self.llm_model == "local" and self.local_llm:
             try:
-                # Simplified prompt that works with TinyLlama
-                chat_prompt = f"""Select tool for: {user_query}
-Options: calculator, plot, pdf, none
-Answer: """
-                full_response = self.local_llm(
-                    chat_prompt,
-                    max_new_tokens=10,  # Reduced from 50 - only need one word
-                    do_sample=False,     # Greedy decoding for speed
-                    pad_token_id=self.local_llm.tokenizer.eos_token_id  # Proper padding
-                )[0]['generated_text']
-
-                # Extract only the generated part (after the prompt)
-                generated_part = full_response[len(chat_prompt):].strip().lower()
-
-                # Direct keyword detection in ONLY the generated part
-                if 'calculator' in generated_part or 'calculate' in generated_part:
-                    return {"tool": "calculator", "reasoning": f"TinyLlama selected calculator: {generated_part}"}
-                elif 'plot' in generated_part or 'visual' in generated_part or 'chart' in generated_part or 'graph' in generated_part:
-                    return {"tool": "plot", "reasoning": f"TinyLlama selected plot: {generated_part}"}
-                elif 'pdf' in generated_part:
-                    return {"tool": "pdf", "reasoning": f"TinyLlama selected PDF: {generated_part}"}
-                else:
-                    return {"tool": "none", "reasoning": f"TinyLlama selected none: {generated_part}"}
+                # TinyLlama is too small for reliable tool selection
+                # Fall back to keyword-based selection for better accuracy
+                print("⚠️ Local LLM (TinyLlama) has limited tool selection accuracy. Using keyword-based selection instead.")
+                return {"tool": "none", "reasoning": "Skipping TinyLlama, using keywords"}
                         
             except Exception as e:
                 print(f"Local LLM tool selection failed: {e}")
@@ -167,7 +163,9 @@ Answer: """
         # Use OpenAI API
         elif self.llm_model == "openai":
             if not self.llm_api_key:
-                return {"tool": "none", "reasoning": "No OpenAI API key provided"}
+                print("⚠️  OpenAI API key not configured. Falling back to keyword-based tool selection.")
+                print("   Tip: Set OPENAI_API_KEY environment variable or use 'local' LLM model.")
+                return {"tool": "none", "reasoning": "No OpenAI API key - using keywords"}
             
             try:
                 response = requests.post(
@@ -199,14 +197,23 @@ Answer: """
                 else:
                     parsed = json.loads(content)
                 tool = parsed.get("tool", "none").strip().lower()
-                if tool not in {"plot", "calculator", "pdf", "none"}:
+                if tool not in {"plot", "calculator", "pdf", "web_search", "file_ops", "none"}:
                     tool = "none"
                 reasoning = parsed.get("reasoning", "OpenAI JSON parsed")[:200]
                 return {"tool": tool, "reasoning": reasoning}
                 
+            except requests.exceptions.HTTPError as e:
+                error_msg = str(e)
+                if "401" in error_msg or "authentication" in error_msg.lower():
+                    print("❌ OpenAI API authentication failed. Please check your API key.")
+                    print("   Tip: Switch to 'local' LLM model in sidebar to use free HuggingFace models.")
+                    return {"tool": "none", "reasoning": "Invalid OpenAI API key - using keywords"}
+                else:
+                    print(f"OpenAI API HTTP error: {e}")
+                    return {"tool": "none", "reasoning": f"OpenAI HTTP error - using keywords"}
             except Exception as e:
                 print(f"OpenAI tool selection failed: {e}")
-                return {"tool": "none", "reasoning": f"OpenAI error: {str(e)}"}
+                return {"tool": "none", "reasoning": f"OpenAI error - using keywords"}
         
         else:
             return {"tool": "none", "reasoning": "Invalid LLM model configuration"}
@@ -276,18 +283,34 @@ Answer: """
         # Parse query to generate plotting code
         q = user_query.lower()
 
-        # Extract function name (sin, cos, tan, log, exp, etc.)
-        func_match = re.search(r'(sin|cos|tan|log|exp|sqrt)\s*\(?\s*x\s*\)?', q)
+        # Extract function name - support both full names and abbreviations
+        func_mapping = {
+            'sine': 'sin', 'sin': 'sin',
+            'cosine': 'cos', 'cos': 'cos',
+            'tangent': 'tan', 'tan': 'tan',
+            'logarithm': 'log', 'log': 'log',
+            'exponential': 'exp', 'exp': 'exp',
+            'square root': 'sqrt', 'sqrt': 'sqrt'
+        }
+        
+        func_name = None
+        for keyword, np_func in func_mapping.items():
+            if keyword in q:
+                func_name = np_func
+                break
 
-        if func_match:
-            func_name = func_match.group(1)
+        if func_name:
 
             # Extract range (e.g., "from 0 to 10")
             range_match = re.search(r'from\s+(-?\d+(?:\.\d+)?)\s+to\s+(-?\d+(?:\.\d+)?)', q)
             if range_match:
                 start, end = range_match.group(1), range_match.group(2)
             else:
-                start, end = "0", "10"  # Default range
+                # Better defaults for trig functions
+                if func_name in ['sin', 'cos', 'tan']:
+                    start, end = "0", "6.28"  # 0 to 2π
+                else:
+                    start, end = "0", "10"
 
             # Generate plotting code
             code = f"""x = np.linspace({start}, {end}, 100)
@@ -334,6 +357,97 @@ plt.grid(True)"""
                 "logs": ["pdf-parser ready"]
             }
         }
+    
+    def _execute_web_search(self, user_query: str, reasoning: str = ""):
+        """Execute web search tool and generate answer from results."""
+        if not self.endpoints.get('web_search'):
+            return {"plan": "Web search unavailable", "tool_result": {"status": "error", "result": {"error": "Web search endpoint not configured"}}}
+        
+        # Extract search query from user query
+        query = user_query
+        
+        payload = {
+            "query": query,
+            "max_results": 5
+        }
+        
+        r = self._post(self.endpoints['web_search'], payload)
+        
+        # Generate natural language answer from search results if using OpenAI
+        if self.llm_model == "openai" and self.llm_api_key and isinstance(r, dict):
+            try:
+                # Extract search results
+                results = r.get('results', []) if 'results' in r else r.get('result', {}).get('results', [])
+                if results:
+                    # Build context from top 3 results
+                    context = "\n\n".join([f"Source: {res['title']}\n{res['snippet']}" for res in results[:3]])
+                    
+                    # Generate answer using OpenAI
+                    response = requests.post(
+                        "https://api.openai.com/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {self.llm_api_key}",
+                            "Content-Type": "application/json"
+                        },
+                        json={
+                            "model": "gpt-3.5-turbo",
+                            "messages": [
+                                {"role": "system", "content": "You are a helpful assistant. Answer the user's question based on the provided web search results. Be concise and informative."},
+                                {"role": "user", "content": f"Question: {user_query}\n\nWeb Search Results:\n{context}\n\nAnswer:"}
+                            ],
+                            "temperature": 0.7,
+                            "max_tokens": 300
+                        },
+                        timeout=15
+                    )
+                    response.raise_for_status()
+                    answer = response.json()['choices'][0]['message']['content']
+                    
+                    # Return answer with sources
+                    return {
+                        "plan": f"Search web and generate answer for: {query}",
+                        "tool_result": {
+                            "status": "success",
+                            "result": {
+                                "answer": answer,
+                                "sources": results[:3]
+                            }
+                        }
+                    }
+            except Exception as e:
+                print(f"Failed to generate answer from search results: {e}")
+                # Fall back to returning raw results
+        
+        # Wrap response in MCP format if successful (fallback)
+        if isinstance(r, dict) and 'status' not in r:
+            # FastAPI response - wrap it
+            return {"plan": f"Search web for: {query}", "tool_result": {"status": "success", "result": r}}
+        
+        return {"plan": f"Search web: {reasoning}" if reasoning else f"Search web for: {query}", "tool_result": r}
+    
+    def _execute_file_read(self, user_query: str, reasoning: str = ""):
+        """Execute file read tool."""
+        if not self.endpoints.get('file_ops'):
+            return {"plan": "File operations unavailable", "tool_result": {"status": "error", "result": {"error": "File operations endpoint not configured"}}}
+        
+        # Try to extract file path from query
+        import re
+        path_match = re.search(r'[\w/\\.-]+\.\w+', user_query)
+        file_path = path_match.group(0) if path_match else "README.md"
+        
+        payload = {
+            "path": file_path
+        }
+        
+        r = self._post(self.endpoints['file_ops'], payload)
+        
+        # Wrap response in MCP format if successful
+        if isinstance(r, dict) and 'status' not in r:
+            # FastAPI response - wrap it
+            return {"plan": f"Read file: {file_path}", "tool_result": {"status": "success", "result": r}}
+        
+        return {"plan": f"Read file: {reasoning}" if reasoning else f"Read file: {file_path}", "tool_result": r}
+
 
     def plan_and_execute(self, user_query):
         start_total = time.time()
@@ -359,19 +473,40 @@ plt.grid(True)"""
                 exe = self._execute_plot(user_query, reasoning)
             elif selected_tool == 'pdf':
                 exe = self._execute_pdf(user_query, reasoning)
+            elif selected_tool == 'web_search':
+                exe = self._execute_web_search(user_query, reasoning)
+            elif selected_tool == 'file_ops':
+                exe = self._execute_file_read(user_query, reasoning)
             else:
                 # Hybrid fallback: if LLM returns 'none', try keyword heuristics
                 ql = user_query.lower()
-                calc_keywords = ["calculate", "compute", "calc", "evaluate", "math", "+", "-", "*", "/", "^", "divide", "times", "plus", "minus", "square root"]
-                plot_keywords = ["plot", "histogram", "chart", "graph", "visualiz", "visual", "draw", "generate", "bar", "line", "scatter", "diagram", "figure"]
-                if any(k in ql for k in calc_keywords) or re.search(r'[\d\s]+[\+\-\*\/^][\d\s]+', ql):
+                # More specific keywords to avoid false positives
+                calc_keywords = ["calculate", "compute", "calc ", "evaluate", " math", "square root", "multiply", "divide"]
+                calc_patterns = [r'\d+\s*[\+\-\*\/\^x]\s*\d+', r'\bsum of\b', r'\btimes\b', r'\bplus\b', r'\bminus\b']
+                plot_keywords = ["plot ", "histogram", "chart", "graph", "visualiz", "draw chart", "generate plot", "bar chart", "line graph", "scatter plot"]
+                search_keywords = ["search for", "find online", "look up online", "google", "current", "latest", "news about", "what is"]
+                file_keywords = ["read file", "open file", "show file", "file content", "read the file"]
+                
+                # Check patterns and keywords
+                has_calc = any(k in ql for k in calc_keywords) or any(re.search(p, ql) for p in calc_patterns)
+                has_plot = any(k in ql for k in plot_keywords)
+                has_search = any(k in ql for k in search_keywords)
+                has_file = any(k in ql for k in file_keywords)
+                
+                if has_calc:
                     selected_tool = 'calculator'
                     exe = self._execute_calculator(user_query, "Keyword fallback: calculation detected")
-                elif any(k in ql for k in plot_keywords):
+                elif has_plot:
                     selected_tool = 'plot'
                     exe = self._execute_plot(user_query, "Keyword fallback: visualization detected")
+                elif has_search:
+                    selected_tool = 'web_search'
+                    exe = self._execute_web_search(user_query, "Keyword fallback: web search detected")
+                elif has_file:
+                    selected_tool = 'file_ops'
+                    exe = self._execute_file_read(user_query, "Keyword fallback: file operation detected")
                 else:
-                    exe = {"plan": f"No tool needed. {reasoning}", "tool_result": None}
+                    exe = {"plan": f"Query knowledge base. {reasoning}", "tool_result": None}
             exe["selected_tool"] = selected_tool
             exe["retrieval_time_ms"] = retrieval_time_ms
             exe["llm_time_ms"] = llm_time_ms
@@ -380,22 +515,33 @@ plt.grid(True)"""
         
         # Fallback to keyword-based selection
         query_lower = user_query.lower()
-        calc_keywords = ["calculate", "compute", "calc", "evaluate", "math", "sum", "add", "subtract", "multiply", "divide", "square root"]
-        plot_keywords = ["plot", "histogram", "chart", "graph", "visualiz", "visual", "draw", "generate", "bar", "line", "scatter", "diagram", "figure"]
-        pdf_keywords = ["pdf", "parse", "extract", "document", "file", "pages"]
+        # More precise keywords to avoid false positives
+        calc_keywords = ["calculate", "compute", "calc ", "evaluate", " math", "square root", "multiply", "divide"]
+        calc_patterns = [r'\d+\s*[\+\-\*\/\^x]\s*\d+', r'\bsum of\b', r'\btimes\b', r'\bplus\b', r'\bminus\b']
+        plot_keywords = ["plot ", "histogram", "chart", "graph", "visualiz", "draw chart", "generate plot", "bar chart", "line graph"]
+        pdf_keywords = ["pdf", "parse pdf", "extract from", "document"]
+        search_keywords = ["search for", "find online", "look up online", "what is", "who is", "latest", "current news"]
+        file_keywords = ["read file", "open file", "show file"]
 
         selected_tool = "none"
-        if any(word in query_lower for word in calc_keywords) or re.search(r'[\d\s]+[\+\-\*\/^][\d\s]+', query_lower):
+        # Check calculator with patterns and keywords
+        if any(word in query_lower for word in calc_keywords) or any(re.search(p, query_lower) for p in calc_patterns):
             exe = self._execute_calculator(user_query, "Keyword match: calculation detected")
             selected_tool = "calculator"
         elif any(word in query_lower for word in plot_keywords):
             exe = self._execute_plot(user_query, "Keyword match: visualization detected")
             selected_tool = "plot"
+        elif any(word in query_lower for word in search_keywords):
+            exe = self._execute_web_search(user_query, "Keyword match: web search detected")
+            selected_tool = "web_search"
+        elif any(word in query_lower for word in file_keywords):
+            exe = self._execute_file_read(user_query, "Keyword match: file operation detected")
+            selected_tool = "file_ops"
         elif any(word in query_lower for word in pdf_keywords):
             exe = self._execute_pdf(user_query, "Keyword match: PDF operation detected")
             selected_tool = "pdf"
         else:
-            exe = {"plan": "No tool call needed", "tool_result": None}
+            exe = {"plan": "Query knowledge base", "tool_result": None}
 
         exe["selected_tool"] = selected_tool
         exe["retrieval_time_ms"] = retrieval_time_ms

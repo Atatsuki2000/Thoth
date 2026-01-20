@@ -94,20 +94,23 @@ def format_agent_response(response_dict: dict, query: str) -> str:
             value = result.get('value', 'N/A')
             output.append(f"**Calculation Result:**\n\n`{expr} = {value}`")
         else:
-            error = tool_result.get('error', 'Unknown error')
+            result = tool_result.get('result', {})
+            error = result.get('error') or tool_result.get('error', 'Unknown error')
             output.append(f"❌ **Calculation Error:** {error}")
     
     elif tool == 'plot' and tool_result:
         if tool_result.get('status') == 'success':
             result = tool_result.get('result', {})
-            img_b64 = result.get('image')
+            # Support both 'image' and 'artifact_base64' field names
+            img_b64 = result.get('image') or result.get('artifact_base64')
             if img_b64:
                 output.append("**Generated Visualization:**\n")
                 output.append(f"![Plot](data:image/png;base64,{img_b64})")
             else:
                 output.append(f"✅ Plot generated successfully")
         else:
-            error = tool_result.get('error', 'Unknown error')
+            result = tool_result.get('result', {})
+            error = result.get('error') or tool_result.get('error', 'Unknown error')
             output.append(f"❌ **Plot Error:** {error}")
     
     elif tool == 'pdf' and tool_result:
@@ -116,8 +119,56 @@ def format_agent_response(response_dict: dict, query: str) -> str:
             text = result.get('text', '')[:500]
             output.append(f"**PDF Content:**\n\n{text}...")
         else:
-            error = tool_result.get('error', 'Unknown error')
+            result = tool_result.get('result', {})
+            error = result.get('error') or tool_result.get('error', 'Unknown error')
             output.append(f"❌ **PDF Error:** {error}")
+    
+    elif tool == 'web_search' and tool_result:
+        if tool_result.get('status') == 'success':
+            result = tool_result.get('result', {})
+            
+            # Check if we have a generated answer
+            answer = result.get('answer')
+            sources = result.get('sources', [])
+            
+            if answer:
+                # Display generated answer with sources
+                output.append(f"**Answer:**\n\n{answer}\n")
+                if sources:
+                    output.append(f"\n**Sources:**")
+                    for idx, res in enumerate(sources, 1):
+                        title = res.get('title', 'No title')
+                        url = res.get('url', '')
+                        output.append(f"{idx}. [{title}]({url})")
+            else:
+                # Fallback to raw search results
+                results = result.get('results', [])
+                if results:
+                    output.append(f"**Web Search Results:**\n")
+                    for idx, res in enumerate(results[:3], 1):
+                        title = res.get('title', 'No title')
+                        snippet = res.get('snippet', '')
+                        url = res.get('url', '')
+                        output.append(f"{idx}. **{title}**")
+                        output.append(f"   {snippet}")
+                        output.append(f"   [{url}]({url})\n")
+                else:
+                    output.append("No search results found")
+        else:
+            result = tool_result.get('result', {})
+            error = result.get('error') or tool_result.get('error', 'Unknown error')
+            output.append(f"❌ **Search Error:** {error}")
+    
+    elif tool == 'file_ops' and tool_result:
+        if tool_result.get('status') == 'success':
+            result = tool_result.get('result', {})
+            content = result.get('content', '')[:500]
+            path = result.get('path', 'unknown')
+            output.append(f"**File Content** (`{path}`):\n\n```\n{content}\n```")
+        else:
+            result = tool_result.get('result', {})
+            error = result.get('error') or tool_result.get('error', 'Unknown error')
+            output.append(f"❌ **File Error:** {error}")
     
     else:
         # No tool or tool failed
@@ -292,6 +343,8 @@ with st.sidebar:
     plot_url = st.text_input("Plot Service URL", value="http://127.0.0.1:8000/mcp/plot")
     calc_url = st.text_input("Calculator URL", value="http://127.0.0.1:8001/mcp/calculate")
     pdf_url = st.text_input("PDF Parser URL", value="http://127.0.0.1:8002/mcp/parse")
+    web_search_url = st.text_input("Web Search URL", value="http://127.0.0.1:8003/mcp/search")
+    file_ops_url = st.text_input("File Ops URL", value="http://127.0.0.1:8004/mcp/read_file")
     
     st.divider()
     
@@ -301,16 +354,21 @@ with st.sidebar:
     llm_model = st.selectbox("LLM Model", ["local", "openai"])
     
     if llm_model == "openai":
-        openai_key = st.text_input("OpenAI API Key", type="password")
+        openai_key = st.text_input("OpenAI API Key", type="password", help="Required for OpenAI model. Get your key at https://platform.openai.com/api-keys")
+        if not openai_key:
+            st.warning("⚠️ OpenAI API key required. Agent will fall back to keyword-based tool selection.")
     else:
         openai_key = None
+        st.info("💡 Using free local LLM (TinyLlama). No API key needed!")
     
     # Initialize or update agent
     if st.button("Initialize Agent"):
         endpoints = {
             'plot': plot_url,
             'calculator': calc_url,
-            'pdf': pdf_url
+            'pdf': pdf_url,
+            'web_search': web_search_url,
+            'file_ops': file_ops_url
         }
         st.session_state.agent = SimpleAgent(
             endpoints=endpoints,
@@ -318,7 +376,13 @@ with st.sidebar:
             llm_api_key=openai_key,
             llm_model=llm_model
         )
-        st.success("Agent initialized!")
+        st.success("✅ Agent initialized with 5 tools!")
+    
+    # Always show agent status
+    if 'agent' in st.session_state and st.session_state.agent is not None:
+        st.success("✅ Agent is ready! MCP tools enabled.")
+    else:
+        st.warning("⚠️ Agent not initialized. Click 'Initialize Agent' above to enable MCP tools.")
 
 
 # Main content
@@ -471,6 +535,8 @@ with tab2:
                             st.markdown(formatted_response, unsafe_allow_html=True)
                         except Exception as e:
                             st.error(f"Agent error: {e}")
+                            import traceback
+                            st.code(traceback.format_exc())
                     elif has_documents:
                         # Generate LLM response from retrieved context (only if we have docs)
                         st.subheader("💬 Generated Answer")

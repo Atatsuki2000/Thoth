@@ -52,7 +52,11 @@ function Start-Service {
     
     Write-Host "Starting $Name..." -ForegroundColor $Color
     
+    # Use direct Python path to avoid activation issues
+    $pythonPath = "$WorkingDir\.venv\Scripts\python.exe"
+    
     $process = Start-Process powershell -ArgumentList @(
+        "-ExecutionPolicy", "Bypass",
         "-NoExit",
         "-Command",
         "& {
@@ -62,7 +66,6 @@ function Start-Service {
             Write-Host '═══════════════════════════════════════' -ForegroundColor $Color
             Write-Host ''
             cd '$WorkingDir'
-            & .venv\Scripts\Activate.ps1
             $Command
         }"
     ) -PassThru -WindowStyle Normal
@@ -73,7 +76,7 @@ function Start-Service {
 # Start MCP Tools
 $plotProcess = Start-Service `
     -Name "Plot Service (Port 8000)" `
-    -Command "cd tools\plot-service; uvicorn main:app --host 0.0.0.0 --port 8000" `
+    -Command "cd tools\plot-service; ..\..`\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8000" `
     -WorkingDir $PWD `
     -Color "Magenta"
 $processes += $plotProcess
@@ -82,7 +85,7 @@ Start-Sleep -Seconds 2
 
 $calcProcess = Start-Service `
     -Name "Calculator Service (Port 8001)" `
-    -Command "cd tools\calculator; uvicorn main:app --host 0.0.0.0 --port 8001" `
+    -Command "cd tools\calculator; ..\..`\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8001" `
     -WorkingDir $PWD `
     -Color "Blue"
 $processes += $calcProcess
@@ -91,17 +94,37 @@ Start-Sleep -Seconds 2
 
 $pdfProcess = Start-Service `
     -Name "PDF Parser Service (Port 8002)" `
-    -Command "cd tools\pdf-parser; uvicorn main:app --host 0.0.0.0 --port 8002" `
+    -Command "cd tools\pdf-parser; ..\..`\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8002" `
     -WorkingDir $PWD `
     -Color "Yellow"
 $processes += $pdfProcess
 
 Start-Sleep -Seconds 2
 
+# Start Web Search Service
+$webSearchProcess = Start-Service `
+    -Name "Web Search Service (Port 8003)" `
+    -Command "cd tools\web-search; ..\..`\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8003" `
+    -WorkingDir $PWD `
+    -Color "DarkCyan"
+$processes += $webSearchProcess
+
+Start-Sleep -Seconds 2
+
+# Start File Operations Service
+$fileOpsProcess = Start-Service `
+    -Name "File Operations Service (Port 8004)" `
+    -Command "`$env:WORKSPACE_DIR='$PWD'; cd tools\file-ops; ..\..`\.venv\Scripts\python.exe -m uvicorn main:app --host 0.0.0.0 --port 8004" `
+    -WorkingDir $PWD `
+    -Color "DarkYellow"
+$processes += $fileOpsProcess
+
+Start-Sleep -Seconds 2
+
 # Start Knowledge Base API
 $kbProcess = Start-Service `
     -Name "Knowledge Base API (Port 8100)" `
-    -Command "python kb_api.py" `
+    -Command ".venv\Scripts\python.exe kb_api.py" `
     -WorkingDir $PWD `
     -Color "Green"
 $processes += $kbProcess
@@ -111,7 +134,7 @@ Start-Sleep -Seconds 3
 # Start Enhanced Streamlit Frontend
 $frontendProcess = Start-Service `
     -Name "Enhanced Frontend (Port 9001)" `
-    -Command "cd frontend; streamlit run app_kb.py --server.port 9001 --server.headless true" `
+    -Command "cd frontend; ..`\.venv\Scripts\streamlit.exe run app_kb.py --server.port 9001 --server.headless true" `
     -WorkingDir $PWD `
     -Color "Cyan"
 $processes += $frontendProcess
@@ -131,7 +154,9 @@ Write-Host "📊 Service URLs:" -ForegroundColor White
 Write-Host "  🎨 Plot Service:      http://localhost:8000" -ForegroundColor Magenta
 Write-Host "  🔢 Calculator:        http://localhost:8001" -ForegroundColor Blue
 Write-Host "  📄 PDF Parser:        http://localhost:8002" -ForegroundColor Yellow
-Write-Host "  📚 Knowledge Base:    http://localhost:8100" -ForegroundColor Green
+Write-Host "  � Web Search:        http://localhost:8003" -ForegroundColor DarkCyan
+Write-Host "  📁 File Operations:   http://localhost:8004" -ForegroundColor DarkYellow
+Write-Host "  �📚 Knowledge Base:    http://localhost:8100" -ForegroundColor Green
 Write-Host "  🌐 Web Interface:     http://localhost:9001" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
