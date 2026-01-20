@@ -51,7 +51,7 @@ ChromaDB MCP   DuckDuckGo
 
 ```powershell
 # Clone & setup
-git clone <your-repo-url>
+git clone https://github.com/Atatsuki2000/Thoth.git
 cd Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration
 
 # Create virtual environment
@@ -94,22 +94,36 @@ pip install -r requirements.txt
 
 ## 🔌 n8n Automation
 
-Pre-built workflows for automation:
+Automate your knowledge base with pre-built n8n workflows:
 
+**Setup:**
 ```bash
-# Install n8n
 npm install -g n8n
-
-# Start n8n
 n8n start  # Opens http://localhost:5678
 ```
 
-**Import workflows** (`n8n-nodes/` folder):
-1. `rag-query-workflow.json` - Query knowledge base
-2. `kb-upload-workflow.json` - Upload documents
-3. `automated-rag-workflow.json` - Daily AI reports
+**Available Workflows** (in `n8n-nodes/` folder):
 
-[📖 Full n8n guide →](n8n-nodes/README.md)
+1. **`rag-query-workflow.json`** - Query knowledge base programmatically
+   - Manual trigger → HTTP Request to KB API → Format response
+   - Use for batch queries or API integration
+
+2. **`kb-upload-workflow.json`** - Upload documents automatically
+   - Read files → Upload to KB → Process response
+   - Supports PDF, TXT, MD, DOCX
+
+3. **`automated-rag-workflow.json`** - Scheduled knowledge reports
+   - Cron trigger (daily 9am) → Batch queries → Generate report
+   - Perfect for daily summaries or monitoring
+
+**How to use:**
+1. In n8n, click "Import from File"
+2. Select a workflow JSON file
+3. Update parameters (collection name, query, schedule)
+4. Click "Execute Workflow" to test
+5. Set "Active: ON" for scheduled workflows
+
+**Note:** Ensure KB API is running at `http://localhost:8100` before using workflows.
 
 ## 🧪 Testing
 
@@ -134,35 +148,22 @@ curl http://localhost:8004/mcp/health  # File Ops
 4. **File Operations**: "Read the README.md file"
 5. **Knowledge Base**: Upload a document first, then ask about it!
 
-## 📚 Documentation
+## 📚 Getting Help
 
-- [📖 Quick Start Examples](docs/quick-start-example.md) - Step-by-step tutorials
-- [📤 KB Upload Guide](docs/kb-upload-guide.md) - How to upload documents
-- [🔄 n8n Workflows](n8n-nodes/README.md) - Automation setup
-- [🔧 Local LLM Setup](docs/local-llm-setup.md) - Free TinyLlama configuration
-- [💰 OpenAI Setup](docs/llm-tool-selection.md) - GPT-3.5/4 API integration
+**Documentation:** Check the `demo_kb/` folder for sample documents and usage examples. Upload these files to see Thoth in action!
 
-## 🌟 What's New
+**OpenAI Setup (Optional):** To use GPT-3.5/4 instead of local LLM, set environment variable: `OPENAI_API_KEY=sk-your-key`
 
-- ✅ **v0.3.0** (Current) - n8n workflows, web search, file operations
-- ✅ **v0.2.0** - Enhanced KB with multi-collection support
-- ✅ **v0.1.0** - Initial release with 3 MCP tools
+**Local LLM (Free):** Thoth uses TinyLlama by default. It downloads automatically on first run (~500MB). For better accuracy, use OpenAI.
 
-See [CHANGELOG.md](CHANGELOG.md) for full history.
+## 🤝 Contributing & License
 
-## 🤝 Contributing
+Contributions are welcome! Feel free to:
+- Report bugs or request features via [GitHub Issues](https://github.com/Atatsuki2000/Thoth/issues)
+- Submit pull requests with improvements
+- Share your use cases in [Discussions](https://github.com/Atatsuki2000/Thoth/discussions)
 
-Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## 📄 License
-
-MIT License - see [LICENSE](LICENSE) file.
-
-## 💡 Support & Community
-
-- 📧 **Issues**: [GitHub Issues](https://github.com/Atatsuki2000/Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/Atatsuki2000/Retrieval-Aware-Tool-Using-Agent-Framework-with-MCP-Integration/discussions)
-- ⭐ **Show Support**: Star this repo if you find it useful!
+This project is licensed under **MIT License** - free to use, modify, and distribute.
 
 ---
 
