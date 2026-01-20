@@ -1,0 +1,101 @@
+{
+  "name": "Upload Document to Knowledge Base",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node",
+      "name": "When clicking 'Test workflow'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "filePath": "={{ $json.filePath || 'C:/path/to/document.txt' }}"
+      },
+      "id": "read-file-node",
+      "name": "Read Document File",
+      "type": "n8n-nodes-base.readBinaryFile",
+      "typeVersion": 1,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:8100/upload",
+        "method": "POST",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "collection",
+              "value": "default"
+            }
+          ]
+        },
+        "sendBinaryData": true,
+        "binaryPropertyName": "data",
+        "options": {}
+      },
+      "id": "http-upload-node",
+      "name": "Upload to KB API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract upload result\nconst response = $input.item.json;\n\nreturn {\n  status: response.status,\n  message: response.message,\n  collection: response.collection_name,\n  documentsAdded: response.num_documents || 0,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "format-node",
+      "name": "Format Upload Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    }
+  ],
+  "connections": {
+    "When clicking 'Test workflow'": {
+      "main": [
+        [
+          {
+            "node": "Read Document File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Document File": {
+      "main": [
+        [
+          {
+            "node": "Upload to KB API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to KB API": {
+      "main": [
+        [
+          {
+            "node": "Format Upload Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-20T12:00:00.000Z",
+  "versionId": "1"
+}

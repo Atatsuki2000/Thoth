@@ -1,0 +1,137 @@
+{
+  "name": "Automated RAG Knowledge Assistant",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * *"
+            }
+          ]
+        }
+      },
+      "id": "schedule-node",
+      "name": "Schedule: Daily at 9 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Define daily questions to ask the knowledge base\nconst questions = [\n  'What are the key updates from yesterday?',\n  'Summarize the main topics in the documentation',\n  'What are the recent changes?'\n];\n\nreturn questions.map(q => ({ query: q }));"
+      },
+      "id": "questions-node",
+      "name": "Prepare Questions",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://127.0.0.1:8100/query",
+        "method": "POST",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.query }}"
+            },
+            {
+              "name": "collection",
+              "value": "default"
+            },
+            {
+              "name": "top_k",
+              "value": 3
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "query-node",
+      "name": "Query Each Question",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compile all Q&A into a daily report\nconst items = $input.all();\n\nlet report = '📊 Daily Knowledge Base Report\\n';\nreport += '='.repeat(50) + '\\n\\n';\n\nitems.forEach((item, i) => {\n  const data = item.json;\n  report += `Question ${i + 1}: ${data.query}\\n`;\n  report += `Answer: ${data.answer || 'No answer found'}\\n`;\n  report += `Sources: ${data.documents?.length || 0} documents\\n\\n`;\n});\n\nreport += `Generated: ${new Date().toLocaleString()}\\n`;\n\nreturn { report };"
+      },
+      "id": "compile-node",
+      "name": "Compile Daily Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "id": "output-node",
+      "name": "Output Report",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.3,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Schedule: Daily at 9 AM": {
+      "main": [
+        [
+          {
+            "node": "Prepare Questions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Questions": {
+      "main": [
+        [
+          {
+            "node": "Query Each Question",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Query Each Question": {
+      "main": [
+        [
+          {
+            "node": "Compile Daily Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Daily Report": {
+      "main": [
+        [
+          {
+            "node": "Output Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-01-20T12:00:00.000Z",
+  "versionId": "1"
+}
